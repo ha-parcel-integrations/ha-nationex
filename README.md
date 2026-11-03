@@ -36,9 +36,9 @@ A custom Home Assistant integration that tracks your [Nationex](https://nationex
 ## Features
 
 - Track any number of Nationex parcels by tracking number — no account needed
-- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, the expected delivery day, weight and dimensions, the scan history and a tracking deep-link
+- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, the expected delivery day when Nationex gives one, weight and dimensions, the scan history and a tracking deep-link
 - Summary sensors: incoming parcels, next delivery, recently delivered parcels
-- Read-only **Deliveries** calendar with the expected delivery windows
+- Read-only **Deliveries** calendar with the expected delivery day, when Nationex gives one
 - `nationex.track_parcel` / `nationex.untrack_parcel` services, so a dashboard button can add a parcel
 - Events + device triggers for no-code automations (parcel registered, status changed, delivered, delivery time changed)
 - Opt-in per-parcel status history
