@@ -1,0 +1,147 @@
+{
+  "title": "Nationex",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurer Nationex",
+        "description": "Le suivi Nationex ne nécessite ni compte ni code postal : le hub est créé immédiatement. Ajoutez ensuite des colis dans les options de l'intégration ou avec le service `nationex.track_parcel`."
+      }
+    },
+    "abort": {
+      "already_configured": "Nationex est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Nationex",
+        "menu_options": {
+          "parcels": "Colis",
+          "settings": "Paramètres"
+        },
+        "sections": {
+          "parcels": {
+            "name": "Colis",
+            "data": {
+              "add": "Ajouter un colis",
+              "remove": "Supprimer des colis"
+            },
+            "data_description": {
+              "add": "Saisissez un numéro de suivi Nationex pour commencer le suivi : 9 chiffres pour un envoi, ou 11 pour un seul colis. Vous le trouverez dans le courriel de confirmation d'expédition."
+            }
+          },
+          "delivered": {
+            "name": "Colis livrés",
+            "data": {
+              "delivered_filter_type": "Filtrer par",
+              "delivered_filter_amount": "Quantité"
+            },
+            "data_description": {
+              "delivered_filter_type": "Afficher les colis livrés des X derniers jours, ou se limiter aux X plus récents.",
+              "delivered_filter_amount": "Nombre de jours ou de colis à afficher."
+            }
+          },
+          "history": {
+            "name": "Historique des colis",
+            "data": {
+              "include_history": "Inclure l'historique des statuts"
+            },
+            "data_description": {
+              "include_history": "Ajoute un attribut d'historique par colis répertoriant chaque mise à jour de statut (horodatage, statut, texte d'origine). Désactivé par défaut."
+            }
+          }
+        }
+      },
+      "parcels": {
+        "title": "Gérer les colis",
+        "data": {
+          "tracking_codes": "Codes de suivi"
+        },
+        "data_description": {
+          "tracking_codes": "9 chiffres pour un envoi, ou 11 chiffres pour un seul colis. Vous le trouverez dans le courriel de confirmation d'expédition."
+        }
+      },
+      "settings": {
+        "title": "Paramètres",
+        "data": {
+          "delivered_filter_type": "Colis livrés : filtrer par",
+          "delivered_filter_amount": "Colis livrés : nombre",
+          "include_history": "Inclure l'historique des statuts"
+        }
+      }
+    },
+    "error": {
+      "invalid_tracking_code": "Un numéro de suivi Nationex comporte 9 chiffres, ou 11 chiffres pour un seul colis.",
+      "already_tracked": "Ce colis est déjà suivi."
+    }
+  },
+  "selector": {
+    "delivered_filter_type": {
+      "options": {
+        "days": "Jours",
+        "parcels": "Nombre de colis"
+      }
+    }
+  },
+  "services": {
+    "track_parcel": {
+      "name": "Suivre un colis",
+      "description": "Commencer à suivre un colis via son code de suivi Nationex.",
+      "fields": {
+        "tracking_code": {
+          "name": "Code de suivi",
+          "description": "Le code de suivi Nationex."
+        }
+      }
+    },
+    "untrack_parcel": {
+      "name": "Ne plus suivre un colis",
+      "description": "Arrêter de suivre un colis via son code de suivi Nationex.",
+      "fields": {
+        "tracking_code": {
+          "name": "Code de suivi",
+          "description": "Le code de suivi Nationex à ne plus suivre."
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "parcel_registered": "Un colis a été enregistré",
+      "parcel_status_changed": "Le statut d'un colis a changé",
+      "parcel_delivered": "Un colis a été livré",
+      "parcel_delivery_time_changed": "L'heure de livraison prévue d'un colis a changé"
+    }
+  },
+  "entity": {
+    "button": {
+      "refresh": {
+        "name": "Actualiser"
+      }
+    },
+    "calendar": {
+      "deliveries": {
+        "name": "Livraisons"
+      }
+    },
+    "sensor": {
+      "incoming_parcels": {
+        "name": "Colis entrants",
+        "unit_of_measurement": "colis"
+      },
+      "next_delivery": {
+        "name": "Prochaine livraison"
+      },
+      "delivered_parcels": {
+        "name": "Colis livrés",
+        "unit_of_measurement": "colis"
+      },
+      "last_update": {
+        "name": "Dernière mise à jour réussie"
+      },
+      "parcel": {
+        "name": "Colis {barcode}"
+      }
+    }
+  }
+}
