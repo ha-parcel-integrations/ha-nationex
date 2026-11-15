@@ -39,7 +39,7 @@ KNOWN_CAPABILITIES = frozenset(
 # Fields this carrier populates, matching ``normalize_parcel`` in parcels.py.
 # There is no pickup point, sender or receiver in the payload. Every value not
 # listed here (or in PENDING_CAPABILITIES) comes back as a literal ``None``.
-CAPABILITIES = frozenset({"weight", "dimensions", "url", "history"})
+CAPABILITIES = frozenset({"url", "history"})
 
 # Fields whose support is not confirmed yet — typically a carrier built without
 # a real parcel to check against. Leave this empty once the open questions are
@@ -70,10 +70,9 @@ PENDING_CAPABILITIES: frozenset[str] = frozenset({"delivery_window"})
 
 # ``TRACKING_API_URL`` is the keyless JSON endpoint the integration polls with a
 # plain GET; ``TRACKING_URL`` is the human-facing deep link surfaced on each
-# parcel's ``url`` field. An unknown number is answered with HTTP 200 and a
-# ``{"code": 404}`` object rather than an HTTP error, so callers sort replies
-# by body.
-TRACKING_API_URL = "https://nationex.com/api/nationex/get-shipment/{tracking_code}"
+# parcel's ``url`` field. An unknown number is answered with HTTP 404, which
+# the client tells apart by body from a 404 for a route that no longer exists.
+TRACKING_API_URL = "https://nationex.com/api/tracking/{tracking_code}?language=en"
 TRACKING_URL = "https://nationex.com/en/tracking/{tracking_code}"
 
 # The shipment object is 13-15 KB for one parcel; anything past this is not a

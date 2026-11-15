@@ -36,7 +36,7 @@ A custom Home Assistant integration that tracks your [Nationex](https://nationex
 ## Features
 
 - Track any number of Nationex parcels by tracking number — no account needed
-- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, the expected delivery day when Nationex gives one, weight and dimensions, the scan history and a tracking deep-link
+- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text, the expected delivery day when Nationex gives one, the scan history and a tracking deep-link
 - Summary sensors: incoming parcels, next delivery, recently delivered parcels
 - Read-only **Deliveries** calendar with the expected delivery day, when Nationex gives one
 - `nationex.track_parcel` / `nationex.untrack_parcel` services, so a dashboard button can add a parcel
@@ -135,10 +135,10 @@ The `status` field is the carrier-agnostic enum shared by the whole integration 
 | `out_for_delivery` | With the courier today |
 | `delivered` | Delivered |
 | `returning` | Going back to the sender, or already back with them |
-| `problem` | A delivery attempt failed, or Nationex reports an attention, refusal, hold or cancellation |
+| `problem` | Nationex reports an attention, refusal, hold or cancellation |
 | `unknown` | Not found yet, or a status we have not mapped yet |
 
-A failed delivery attempt shows as `problem` until the parcel is scanned again, even though Nationex itself reports the parcel as in transit again.
+A failed delivery attempt shows in the scan history, but the status stays what Nationex reports, usually in transit. Nationex's public tracking no longer gives weight or dimensions.
 
 The carrier's own human-readable text is available as `raw_status`.
 

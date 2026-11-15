@@ -10,7 +10,12 @@ import pytest
 from custom_components.nationex.api import NationexApiClient, NationexApiError
 from custom_components.nationex.const import MAX_RESPONSE_BYTES
 
-from .payloads import UNKNOWN_BODY, delivered_sample
+from .payloads import (
+    LIVE_NOT_FOUND_BODY,
+    ROUTE_MISSING_BODY,
+    UNKNOWN_BODY,
+    delivered_sample,
+)
 
 CODE = "900000001"
 PARCEL_CODE = "90000000101"
@@ -41,7 +46,7 @@ async def test_returns_shipment_and_sends_plain_get():
     shipment = await NationexApiClient(session).async_get_parcel(CODE)
 
     assert shipment["ShipmentId"] == 900000001
-    assert session.get.call_args[0][0].endswith(f"/get-shipment/{CODE}")
+    assert session.get.call_args[0][0].endswith(f"/api/tracking/{CODE}?language=en")
     kwargs = session.get.call_args.kwargs
     assert kwargs["headers"] == {"Accept": "application/json"}
     assert kwargs["allow_redirects"] is False
@@ -163,3 +168,15 @@ async def test_network_error_propagates():
     session.get = MagicMock(side_effect=aiohttp.ClientError("boom"))
     with pytest.raises(aiohttp.ClientError):
         await NationexApiClient(session).async_get_parcel(CODE)
+
+
+async def test_tracking_backend_404_is_not_found():
+    session = _session(404, LIVE_NOT_FOUND_BODY)
+    assert await NationexApiClient(session).async_get_parcel(CODE) is None
+
+
+@pytest.mark.parametrize("body", [ROUTE_MISSING_BODY, "<html>gone</html>", [404]])
+async def test_other_404_is_transport_error(body):
+    with pytest.raises(NationexApiError) as err:
+        await NationexApiClient(_session(404, body)).async_get_parcel(CODE)
+    assert err.value.status_code == 404

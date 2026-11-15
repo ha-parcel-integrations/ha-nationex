@@ -19,6 +19,9 @@ _CHALLENGE = re.compile(
     re.IGNORECASE,
 )
 _NOT_FOUND_CODE = 404
+# The site answers a missing route with its own 404 too; only the tracking
+# backend's 404 means the number is unknown.
+_ROUTE_MISSING = "Page not found"
 
 
 class NationexApiError(Exception):
@@ -65,6 +68,16 @@ def _warn_challenge() -> None:
     )
 
 
+def _is_unknown_number(text: str) -> bool:
+    try:
+        body = json.loads(text)
+    except ValueError:
+        return False
+    if not isinstance(body, dict) or body.get("statusCode") != _NOT_FOUND_CODE:
+        return False
+    return not str(body.get("message") or "").startswith(_ROUTE_MISSING)
+
+
 def _matches(payload: dict[str, Any], tracking_code: str) -> bool:
     """Whether the shipment is the one asked for, not a lookalike match."""
     if str(payload.get("ShipmentId")) == tracking_code:
@@ -81,9 +94,9 @@ def _matches(payload: dict[str, Any], tracking_code: str) -> bool:
 class NationexApiClient:
     """Client for the public Nationex tracking endpoint.
 
-    No authentication: the endpoint is keyed on the tracking number alone and
-    answers HTTP 200 for both a shipment and an unknown number, so replies are
-    sorted by body.
+    No authentication: the endpoint is keyed on the tracking number alone. An
+    unknown number is an HTTP 404 from the tracking backend, told apart by its
+    body from the site's own 404 for a missing route.
     """
 
     def __init__(self, session: aiohttp.ClientSession) -> None:
@@ -120,6 +133,11 @@ class NationexApiClient:
                     (await _read_capped(response)).decode(errors="replace")
                 ):
                     _warn_challenge()
+            if response.status == _NOT_FOUND_CODE:
+                if _is_unknown_number(
+                    (await _read_capped(response)).decode(errors="replace")
+                ):
+                    return None
             if response.status != 200:
                 raise NationexApiError(
                     f"HTTP {response.status}", status_code=response.status

@@ -52,20 +52,24 @@ you act in one of these areas:
   or one 11-digit parcel number (shipment + two-digit position) per entry.
   A nine-digit number tracks the whole shipment, an eleven-digit one a single
   parcel of it. There is no check digit.
-- **Replies are sorted by body, not HTTP status.** An unknown number is not
-  found (suite placeholder). Every other error reply, a challenge page, a
-  redirect or a 4xx/5xx is a transport error, so the last good data is kept.
+- **Not-found is a 404 told apart by its body.** The tracking backend's 404
+  for an unknown number is not found (suite placeholder). The site's own 404
+  for a route that no longer exists, every other error reply, a challenge
+  page, a redirect or a 4xx/5xx is a transport error, so the last good data
+  is kept when the route moves again.
 - **A reply about another shipment is not a failed poll.** The service also
   answers some non-tracking numbers with the shipment they belong to. That
   code keeps its last good data, or shows the `unknown` placeholder, instead
   of failing setup and taking `untrack_parcel` away. This is the one
   deliberate divergence in `coordinator.py`.
 - **Status** comes from the shipment (or, for a parcel number, the parcel)
-  state. A failed delivery attempt stands as `problem`, with its own wording
-  as `raw_status`, until the next scan that says where the parcel is, even
-  though the state goes back to in transit. A partly delivered shipment stays
-  `in_transit`. Unmapped state: newest mappable scan, where a delivery scan
-  only counts once every selected parcel has one, else `unknown`.
+  state. The public reply has no scan codes, so each scan takes the state in
+  force at its clock; the code-based scan map stays for a reply that carries
+  them again. Without codes a failed delivery attempt is only free text, so it
+  is **not** turned into `problem` — never match the scan wording. A partly
+  delivered shipment stays `in_transit`. Unmapped state: newest mappable
+  scan, where a delivery scan only counts once every selected parcel is
+  delivered (its own state or completed scan), else `unknown`.
 - **History** is the selected parcels' scans, deduplicated on (clock, code,
   text), sorted ascending, last 20. Clocks have no offset and are localised to
   `America/Toronto`; never parse them as UTC.
@@ -74,10 +78,11 @@ you act in one of these areas:
   parcel's forecast holds its delivery moment, so it is never used. No parcel
   on its way has confirmed this, so `delivery_window` is in
   `PENDING_CAPABILITIES` and using the forecast logs one warning.
-- **Units:** weight is assumed pounds, dimensions inches. The reported volume
-  must agree with the dimensions or they are dropped with a warning. All-zero
-  dimensions mean nobody measured the parcel: `None`. Dimensions are only shown
-  when exactly one parcel is selected.
+- **No weight or dimensions** in the public reply, so neither is in
+  `CAPABILITIES`. The parsing stays (pounds, inches; volume must agree; all
+  zeros mean unmeasured) and the keys sit in the only-seen-empty sets, so a
+  reply that carries them again logs one warning — then re-add the
+  capabilities.
 - **`None` on purpose:** `sender`, `receiver`, `pickup_point`; `pickup` is
   always `False`, this is a door-delivery carrier. The sender and destination
   blocks, last stop, geocodes, contacts, photos and signatures are not mapped

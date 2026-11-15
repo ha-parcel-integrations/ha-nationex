@@ -26,8 +26,10 @@ from custom_components.nationex.parcels import (
 )
 
 from .payloads import (
+    LIVE_CODE,
     active_sample,
     delivered_sample,
+    live_sample,
     parcel,
     scan,
     shipment,
@@ -35,6 +37,15 @@ from .payloads import (
 )
 
 TORONTO_EDT = "-04:00"
+
+
+def _unmeasured(raw: dict) -> dict:
+    """Drop the weight and dimensions the public reply no longer sends."""
+    raw.pop("TotalWeight", None)
+    for item in raw["Parcels"]:
+        item.pop("Weight", None)
+        item.pop("Dimensions", None)
+    return raw
 
 
 def _n(raw: dict, code: str | None = None, **kwargs) -> dict:
@@ -406,7 +417,7 @@ def test_unknown_keys_and_shipment_type_warn_once_without_values(caplog):
 
 
 def test_live_keys_and_delivery_type_raise_no_warnings(caplog):
-    raw = delivered_sample()
+    raw = _unmeasured(delivered_sample())
     raw.update(InsertedDate=None, BillingAccount=None, ShipmentType="Delivery")
     raw["Parcels"][0].update(NCV=False, EstimatedDeliveryDateRangeEn="2026-10-15")
     with caplog.at_level(logging.WARNING):
@@ -416,8 +427,11 @@ def test_live_keys_and_delivery_type_raise_no_warnings(caplog):
 
 def test_known_payload_raises_no_warnings(caplog):
     with caplog.at_level(logging.WARNING):
-        _n(delivered_sample(), include_history=True)
-        _n(active_sample())
+        _n(_unmeasured(delivered_sample()), include_history=True)
+        _n(_unmeasured(active_sample()))
+        _n(live_sample(), include_history=True)
+        _n(live_sample(states=5), include_history=True)
+        _n(live_sample(), code=f"{LIVE_CODE}01", include_history=True)
     assert [
         record.getMessage()
         for record in caplog.records
@@ -567,7 +581,7 @@ def test_a_capability_is_never_both_populated_and_pending():
 
 
 def test_capabilities_match_what_normalize_parcel_actually_returns():
-    delivered = _n(delivered_sample())
+    delivered = _n(live_sample())
     active = _n(active_sample())
     with_history = _n(delivered_sample(), include_history=True)
 
@@ -575,6 +589,9 @@ def test_capabilities_match_what_normalize_parcel_actually_returns():
         assert delivered["weight"] is not None
     if "dimensions" in CAPABILITIES:
         assert delivered["dimensions"] is not None
+    # The public reply no longer carries a weight or measurements.
+    assert delivered["weight"] is None
+    assert delivered["dimensions"] is None
     if "url" in CAPABILITIES:
         assert delivered["url"] is not None
     if "history" in CAPABILITIES:
@@ -779,7 +796,7 @@ def test_unmeasured_zero_dimensions_are_none(caplog):
     }
     with caplog.at_level(logging.WARNING):
         assert _n(raw)["dimensions"] is None
-    assert caplog.records == []
+    assert "volume" not in caplog.text
 
 
 def test_format_dimensions_rounds_the_text():
@@ -866,3 +883,73 @@ def test_delivered_filter_keeps_unparseable_timestamp():
     """Better to show a parcel with a broken date than to silently drop it."""
     parcels = [{"barcode": "WEIRD", "delivered_at": "nonsense"}]
     assert apply_delivered_filter(parcels, _entry("days", 7)) == parcels
+
+
+# ---------------------------------------------------------------------------
+# public reply without scan codes
+# ---------------------------------------------------------------------------
+
+
+def test_live_delivered_parcel_takes_scan_statuses_from_the_states():
+    result = _n(live_sample(), include_history=True)
+    assert result["status"] is ParcelStatus.DELIVERED
+    assert result["raw_status"] == "Delivered"
+    assert result["delivered_at"] == f"2026-10-13T10:28:25{TORONTO_EDT}"
+    assert result["weight"] is None
+    assert result["dimensions"] is None
+    assert [(row["raw_status"], row["status"]) for row in result["history"]] == [
+        ("Shipment created", ParcelStatus.REGISTERED),
+        ("Driver in route for pickup", ParcelStatus.REGISTERED),
+        ("Pickup of the parcel confirmed", ParcelStatus.IN_TRANSIT),
+        ("Parcel scanned", ParcelStatus.IN_TRANSIT),
+        ("Parcel scanned", ParcelStatus.IN_TRANSIT),
+        ("Parcel out for delivery", ParcelStatus.OUT_FOR_DELIVERY),
+        ("Picture taken", ParcelStatus.OUT_FOR_DELIVERY),
+        (
+            "Delivery completed - Parcel left at the front door",
+            ParcelStatus.DELIVERED,
+        ),
+    ]
+
+
+def test_live_parcel_number_uses_the_parcel_states():
+    raw = live_sample(states=5)
+    raw["StatusHistories"] = []
+    result = _n(raw, code=f"{LIVE_CODE}01", include_history=True)
+    assert result["status"] is ParcelStatus.OUT_FOR_DELIVERY
+    assert result["history"][-1]["status"] is ParcelStatus.OUT_FOR_DELIVERY
+
+
+def test_live_scan_before_any_state_is_unknown():
+    raw = live_sample(states=4)
+    raw["Parcels"][0]["History"].append(
+        {**raw["Parcels"][0]["History"][-1], "ProcessedDate": "2026-10-01T08:00:00"}
+    )
+    history = _n(raw, include_history=True)["history"]
+    assert history[0]["status"] is ParcelStatus.UNKNOWN
+
+
+def test_live_unmapped_state_falls_back_to_the_parcel_delivered_state():
+    raw = live_sample()
+    raw["ShipmentStatus"] = "SomethingNew"
+    result = _n(raw)
+    assert result["status"] is ParcelStatus.DELIVERED
+    assert result["raw_status"] == "Delivery completed - Parcel left at the front door"
+
+
+def test_live_unmapped_state_with_a_parcel_on_its_way_is_not_delivered():
+    raw = live_sample()
+    raw["ShipmentStatus"] = "SomethingNew"
+    raw["Parcels"][0]["Status"] = "Transit"
+    assert _n(raw)["status"] is ParcelStatus.OUT_FOR_DELIVERY
+
+
+def test_returning_weight_is_flagged_once(caplog):
+    raw = live_sample()
+    raw["TotalWeight"] = 4
+    raw["Parcels"][0]["Weight"] = 4
+    with caplog.at_level(logging.WARNING):
+        _n(raw)
+        _n(raw)
+    assert caplog.text.count("field TotalWeight") == 1
+    assert caplog.text.count("field Weight") == 1

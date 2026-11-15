@@ -102,7 +102,7 @@ _TOP_KEYS = frozenset(
         "Accessory", "Parcels", "ConsolId", "Photos", "LastStop",
         "IsInvoiced", "IsScanned", "IsConsolidated", "IsPickup",
         "IsDelivered", "HasCode390", "IsGreen", "InsertedDate",
-        "BillingAccount", "trackingNumber",
+        "BillingAccount", "trackingNumber", "access",
     }
 )  # fmt: skip
 _PARCEL_KEYS = frozenset(
@@ -125,15 +125,19 @@ _SCAN_KEYS = frozenset(
         "Geocoding", "Contact",
     }
 )  # fmt: skip
-# Known keys only ever seen empty; a first real value needs a look.
+# Known keys only ever seen empty, or no longer sent at all (weight and
+# dimensions); a first real value needs a look.
 _UNSEEN_TOP_KEYS = frozenset(
-    {"CustomerId", "BillingAccount", "InsertedDate", "Note", "Accessory", "Photos"}
-)
+    {
+        "CustomerId", "BillingAccount", "InsertedDate", "Note", "Accessory",
+        "Photos", "TotalWeight",
+    }
+)  # fmt: skip
 _UNSEEN_PARCEL_KEYS = frozenset(
     {
         "EstimatedDeliveryDateTimeStart", "EstimatedDeliveryDateTimeEnd",
         "EstimatedDeliveryDateTimeExact", "EstimatedPercentageBeforeDelivery",
-        "EstimatedDeliveryWithinFewHours",
+        "EstimatedDeliveryWithinFewHours", "Weight", "Dimensions",
     }
 )  # fmt: skip
 _SHIPMENT_TYPES = frozenset({"Delivery", "PickupDelivery"})
@@ -283,11 +287,44 @@ def _collect_scans(parcels: list[dict]) -> list[dict]:
     return scans
 
 
-def _walk_scans(scans: list[dict]) -> None:
-    """Give every scan its status; quiet codes keep the previous one."""
+def _state_rows(rows: Any, key: str) -> list[tuple[datetime, ParcelStatus]]:
+    """Return the mapped state history, oldest first."""
+    if not isinstance(rows, list):
+        return []
+    states = [
+        (at, status)
+        for row in rows
+        if isinstance(row, dict)
+        and (at := _clock(row.get("StatusDate"))) is not None
+        and (status := map_state(row.get(key))) is not None
+    ]
+    states.sort(key=lambda state: state[0])
+    return states
+
+
+def _state_at(
+    states: list[tuple[datetime, ParcelStatus]], at: datetime
+) -> ParcelStatus:
+    current = ParcelStatus.UNKNOWN
+    for since, status in states:
+        if since > at:
+            break
+        current = status
+    return current
+
+
+def _walk_scans(scans: list[dict], states: list[tuple[datetime, ParcelStatus]]) -> None:
+    """Give every scan its status; quiet codes keep the previous one.
+
+    A scan without a code takes the state in force at its clock.
+    """
     previous = ParcelStatus.UNKNOWN
     for scan in scans:
         code = scan["code"]
+        if code is None:
+            scan["quiet"] = False
+            scan["status"] = previous = _state_at(states, scan["at"])
+            continue
         if code in _QUIET_SCANS:
             scan["status"] = previous
             scan["quiet"] = True
@@ -408,9 +445,10 @@ def _dimensions(parcel: dict) -> dict[str, Any] | None:
 
 
 def _all_completed(parcels: list[dict]) -> bool:
-    """Whether every parcel has its own delivery-completed scan."""
+    """Whether every parcel has its own delivery-completed scan or state."""
     return all(
-        any(
+        parcel.get("Status") == "Delivered"
+        or any(
             isinstance(row, dict)
             and _scan_code(row.get("ExceptionId")) == _DELIVERY_COMPLETED
             for row in parcel.get("History") or []
@@ -510,10 +548,6 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
     if not single:
         selected = all_parcels
 
-    scans = _collect_scans(selected)
-    _walk_scans(scans)
-    loud = [scan for scan in scans if not scan["quiet"]]
-
     if single:
         state = selected[0].get("Status")
         raw_status = selected[0].get("StatusDescriptionEn")
@@ -523,6 +557,10 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
         raw_status = raw.get("ShipmentStatusEn")
         rows, row_key = raw.get("StatusHistories"), "ShipmentStatus"
     status = map_state(state)
+
+    scans = _collect_scans(selected)
+    _walk_scans(scans, _state_rows(rows, row_key))
+    loud = [scan for scan in scans if not scan["quiet"]]
 
     if status is None:
         # One parcel's delivery scan must not close a shipment still under way.
