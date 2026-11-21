@@ -38,10 +38,11 @@ you act in one of these areas:
 - **Events and `_known_state` are built from the unfiltered delivered list.**
   The "keep N days / N parcels" option only trims `coordinator.delivered`; a
   parcel it leaves out must still fire `_parcel_delivered`.
-- **The optional pickup-point summaries are a pair.** A carrier that can tell
-  a parcel is destined for a pickup point exposes
-  `en_route_to_pickup_point` for `pickup is true` before it arrives; one that
-  can reach `ParcelStatus.AT_PICKUP_POINT` also exposes `awaiting_pickup`.
+- **The pickup-point summaries are a pair.** A carrier that can deliver to a
+  pickup point or locker exposes both `en_route_to_pickup_point` and
+  `awaiting_pickup`, even before a real parcel has shown the status or flag
+  (they read 0 until then; record it in `PENDING_*`). A carrier without pickup
+  points exposes neither and keeps `pickup` constantly False.
   See *Parcel contract* in `CONVENTIONS.md`. Say "pickup point", not
   "ServicePoint"/"parcel shop"/"locker", for the generic concept; the
   example carrier demonstrates both canonical sensors.
@@ -73,11 +74,16 @@ you act in one of these areas:
 - **History** is the selected parcels' scans, deduplicated on (clock, code,
   text), sorted ascending, last 20. Clocks have no offset and are localised to
   `America/Toronto`; never parse them as UTC.
-- **ETA** is so far a forecast day only, turned into a whole-day window while
-  the status is registered, in transit or out for delivery. A delivered
+- **ETA** is so far a forecast day only, turned into a whole-day window
+  (00:00:00 to 23:59:59 Toronto) for every status except delivered, returning
+  and at-pickup-point, which empty it. A start without an end runs to the end
+  of that day. A forecast in the past is published as sent. A delivered
   parcel's forecast holds its delivery moment, so it is never used. No parcel
   on its way has confirmed this, so `delivery_window` is in
   `PENDING_CAPABILITIES` and using the forecast logs one warning.
+- **`ReturnCompleted` stays `returning`, not delivered.** The contract allows
+  `delivered` for a return that is back at the sender; that state has never
+  been seen on a real parcel, so it is left undecided here.
 - **No weight or dimensions** in the public reply, so neither is in
   `CAPABILITIES`. The parsing stays (pounds, inches; volume must agree; all
   zeros mean unmeasured) and the keys sit in the only-seen-empty sets, so a

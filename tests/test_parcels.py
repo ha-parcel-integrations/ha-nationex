@@ -659,13 +659,13 @@ def test_eta_dropped_once_delivered():
     assert (result["planned_from"], result["planned_to"]) == (None, None)
 
 
-def test_eta_dropped_when_a_later_day_scan_exists():
+def test_eta_is_published_as_sent_when_a_later_day_scan_exists():
     raw = active_sample()
     raw["Parcels"][0]["History"].insert(
         0, scan(903, "2026-04-30T01:00:00", "Parcel scanned")
     )
     result = _n(raw)
-    assert result["planned_from"] is None
+    assert result["planned_from"] == f"2026-04-29T00:00:00{TORONTO_EDT}"
 
 
 def test_eta_kept_when_scan_is_same_day():
@@ -681,12 +681,12 @@ def test_eta_prefers_explicit_window():
     assert result["planned_to"] == f"2026-04-29T15:00:00{TORONTO_EDT}"
 
 
-def test_eta_with_start_only_has_no_end():
+def test_eta_with_start_only_runs_to_the_end_of_that_day():
     raw = active_sample()
     raw["Parcels"][0]["EstimatedDeliveryDateTimeStart"] = "2026-04-29T13:00:00"
     result = _n(raw)
     assert result["planned_from"] == f"2026-04-29T13:00:00{TORONTO_EDT}"
-    assert result["planned_to"] is None
+    assert result["planned_to"] == f"2026-04-29T23:59:59{TORONTO_EDT}"
 
 
 def test_eta_absent_or_unparseable_is_none(caplog):
@@ -709,15 +709,19 @@ def test_eta_takes_the_latest_across_parcels():
     assert _n(raw)["planned_from"] == f"2026-10-20T00:00:00{TORONTO_EDT}"
 
 
-def test_eta_only_while_registered_in_transit_or_out_for_delivery():
+def test_eta_is_empty_once_the_parcel_is_back_with_the_sender():
+    for state in ("OnHold", "Cancelled", "Attention"):
+        raw = active_sample()
+        raw["ShipmentStatus"] = raw["Parcels"][0]["Status"] = state
+        assert _n(raw)["planned_from"] is not None, state
+    for state in ("ReturnToSender", "ReturnCompleted"):
+        raw = active_sample()
+        raw["ShipmentStatus"] = raw["Parcels"][0]["Status"] = state
+        assert _n(raw)["planned_from"] is None, state
     for state in ("Creation", "Transit", "OutForDelivery"):
         raw = active_sample()
         raw["ShipmentStatus"] = raw["Parcels"][0]["Status"] = state
         assert _n(raw)["planned_from"] is not None, state
-    for state in ("OnHold", "ReturnToSender"):
-        raw = active_sample()
-        raw["ShipmentStatus"] = raw["Parcels"][0]["Status"] = state
-        assert _n(raw)["planned_from"] is None, state
 
 
 @pytest.mark.parametrize(
