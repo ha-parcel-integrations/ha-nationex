@@ -365,12 +365,14 @@ def map_state(state: Any) -> ParcelStatus | None:
 
 def _eta(parcels: list[dict]) -> tuple[str | None, str | None]:
     """Return the expected delivery window, latest across the parcels."""
-    best: tuple[str, str | None] | None = None
+    best: tuple[str | None, str | None] | None = None
     for parcel in parcels:
         # A delivered parcel's forecast fields hold its delivery moment.
         if parcel.get("Status") == "Delivered":
             continue
-        start = _clock(parcel.get("EstimatedDeliveryDateTimeStart"))
+        start: datetime | date | None = _clock(
+            parcel.get("EstimatedDeliveryDateTimeStart")
+        )
         end = _clock(parcel.get("EstimatedDeliveryDateTimeEnd"))
         if start is None:
             day = _day(parcel.get("EstimatedDeliveryDate"))
@@ -392,8 +394,8 @@ def _eta(parcels: list[dict]) -> tuple[str | None, str | None]:
     return best or (None, None)
 
 
-def _latest(window: tuple[str, str | None]) -> datetime:
-    return datetime.fromisoformat(window[1] or window[0])
+def _latest(window: tuple[str | None, str | None]) -> datetime:
+    return datetime.fromisoformat(window[1] or window[0] or "")
 
 
 def _moment(value: Any, zone: tzinfo) -> tuple[datetime, bool, str] | None:
