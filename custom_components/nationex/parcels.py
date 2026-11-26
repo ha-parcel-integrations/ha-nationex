@@ -614,6 +614,7 @@ def normalize_parcel(raw: dict, *, include_history: bool = False) -> dict:
         "barcode": number,
         "sender": None,
         "receiver": None,
+        "contents": None,
         "status": ParcelStatus.UNKNOWN,
         "raw_status": None,
         "delivered": False,

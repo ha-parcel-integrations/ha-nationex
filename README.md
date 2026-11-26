@@ -40,6 +40,7 @@ A custom Home Assistant integration that tracks your [Nationex](https://nationex
 - Summary sensors: incoming parcels, next delivery, recently delivered parcels
 - Read-only **Deliveries** calendar with the expected delivery day, when Nationex gives one
 - `nationex.track_parcel` / `nationex.untrack_parcel` services, so a dashboard button can add a parcel
+- A `contents` field on every parcel, set in your own words with the `nationex.update_contents` service or the `contents` field of `nationex.track_parcel`; it titles the calendar event and shows on the next-delivery sensor
 - Events + device triggers for no-code automations (parcel registered, status changed, delivered, delivery time changed)
 - Opt-in per-parcel status history
 - Manual refresh button and a diagnostic last-update sensor
@@ -159,8 +160,9 @@ Every payload is the full normalised parcel plus the hub's `device_id`. Events a
 
 | Service | Fields | Description |
 |---|---|---|
-| `nationex.track_parcel` | `tracking_code` | Start tracking a parcel |
+| `nationex.track_parcel` | `tracking_code`, optional `contents` | Start tracking a parcel, optionally noting what is in it |
 | `nationex.untrack_parcel` | `tracking_code` | Stop tracking a parcel |
+| `nationex.update_contents` | `tracking_code`, `contents` (optional) | Set what is in a parcel, tracked or not; an empty `contents` clears it. It titles the calendar event and shows on the next-delivery sensor |
 
 ## Examples
 

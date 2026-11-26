@@ -121,3 +121,10 @@ def test_next_delivery_skips_a_window_that_has_ended():
     )
     sensor = NationexNextDeliverySensor(coordinator, _entry())
     assert sensor.extra_state_attributes["barcode"] == "NEW"
+
+
+def test_next_delivery_carries_the_contents():
+    parcel = _parcel("A", planned_from="2099-05-01T10:00:00Z")
+    parcel["contents"] = "Running shoes"
+    sensor = NationexNextDeliverySensor(_coordinator([parcel]), _entry())
+    assert sensor.extra_state_attributes["contents"] == "Running shoes"

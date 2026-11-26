@@ -40,7 +40,9 @@ async def test_diagnostics_redacts_every_identifying_field(hass):
     raw["StatusHistories"][0]["SomeTooltipFr"] = "Example Shop"
     entry = MagicMock()
     entry.options = {"parcels": [{"tracking_code": "900000001"}]}
-    entry.runtime_data.coordinator = _coordinator([normalize_parcel(raw)])
+    published = normalize_parcel(raw)
+    published["contents"] = "Running shoes"
+    entry.runtime_data.coordinator = _coordinator([published])
 
     result = await async_get_config_entry_diagnostics(hass, entry)
 
@@ -55,6 +57,7 @@ async def test_diagnostics_redacts_every_identifying_field(hass):
     parcel = result["incoming"][0]
     assert parcel["barcode"] == REDACTED
     assert parcel["url"] == REDACTED
+    assert parcel["contents"] == REDACTED
     out = parcel["raw"]
     for key in (
         "trackingNumber",
@@ -94,6 +97,7 @@ async def test_diagnostics_redacts_every_identifying_field(hass):
         "K0K0K0",
         "Example Street",
         "900000001",
+        "Running shoes",
     ):
         assert leak not in text, leak
     # non-identifying fields survive, or the diagnostics would be useless
